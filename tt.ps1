@@ -81,22 +81,35 @@ $ansi_codes = @{
     Gray=7
 }
 
-
 function ANSIcolour ($Colour, $Offset) {
-    $cc = $Colour -as [ConsoleColor]
-    $dc = [Drawing.Color]::$Colour
-    if ($cc -is [ConsoleColor]) {
-        $Offset + $ansi_codes[$cc]
+    $orig = $Colour
+    if ($null -eq $Colour) {
+        return
     }
-    elseif ($dc -is [Drawing.Color]) {
-        ($Offset+8), 2, $dc.R, $dc.G, $dc.B
+    if ($Colour -is [String]) {
+        try {
+            $Colour = [ConsoleColor]$Colour
+        } catch {
+            $dc = [Drawing.Color]::FromName($Colour)
+            if ($dc.IsKnownColor) {
+                $Colour = $dc
+            } else {
+                throw "Unknown colour: $orig"
+            }
+        }
+    }
+    if ($Colour -is [ConsoleColor]) {
+        $Offset + $ansi_codes[[String]$Colour]
+    }
+    elseif ($Colour -is [Drawing.Color]) {
+        ($Offset+8), 2, $Colour.R, $Colour.G, $Colour.B
     }
     elseif ($Colour -is [Object[]]) {
         ($Offset+8), 2
         $Colour
     }
     else {
-        throw "Unknown colour: $Colour"
+        throw "Unknown colour: $orig"
     }
 }
 
@@ -113,7 +126,6 @@ function ANSI {
     if ($Dim) { 2 }
     if ($Underline) { 4 }
     if ($Reverse) { 7 }
-    Write-Host -Fore $Foreground $Foreground
     ANSIcolour $Foreground 30
     ANSIcolour $Background 40
 }
@@ -130,12 +142,13 @@ function ANSIstr {
         [Switch]$NoReset
     )
     $reset = if ($NoReset) { "" } else { "`e[0m" }
-    $ops = (ANSI $Foreground $Background $Bold $Dim $Underline $Reverse) -join ";"
+    $ops = (ANSI $Foreground $Background -Bold:$Bold -Dim:$Dim -Underline:$Underline -Reverse:$Reverse) -join ";"
     "`e[${ops}m${Text}${reset}"
 }
 
-ANSI Yellow Bisque -Underline
-Write-Host ("XXXX" + (ANSIstr "Hello" Yellow Bisque -Underline))
+$A=@{Text="Hello"; Foreground="Black"; Background=(162,171,98); Underline=$true}
+ANSI @A
+Write-Host ("XXXX" + (ANSIstr @A))
 
 function get_colour($fg, $bg) {
 
