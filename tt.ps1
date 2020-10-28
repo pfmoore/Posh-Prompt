@@ -24,6 +24,11 @@ function Remove-ScriptComponent ([String]$Name) {
 }
 
 function Get-PromptLayout ($ScriptBlock) {
+    $sep = [PSCustomObject]@{String=""; Powerline=$false}
+    function Separator($String, [Switch]$Powerline) {
+        $sep.String=$String
+        $sep.Powerline=$Powerline
+    }
     function Section {
         [CmdletBinding()]
         param($Item, $Foreground, $Background, $Delims, $Text)
@@ -43,17 +48,94 @@ function Get-PromptLayout ($ScriptBlock) {
         }
     }
     & $ScriptBlock
+    Write-Host -Fore Blue "SEP: $sep"
 }
 
 $p = PromptLayout {
+    Separator [char]0xE0B0 -Powerline
     Section PS -F Cyan -B Red
     Section Date Bisque -B AliceBlue
     Section Git Green
     Section LastTime Blue -Delims "{}"
-    Section PWD DarkYellow
+    Section PWD Yellow
     Section DirStack -Text ">"
     Section -Text ">"
 }
+
+$ansi_codes = @{
+    DarkGray=60
+    Red=61
+    Green=62
+    Yellow=63
+    Blue=64
+    Magenta=65
+    Cyan=66
+    White=67
+    Black=0
+    DarkRed=1
+    DarkGreen=2
+    DarkYellow=3
+    DarkBlue=4
+    DarkMagenta=5
+    DarkCyan=6
+    Gray=7
+}
+
+
+function ANSIcolour ($Colour, $Offset) {
+    $cc = $Colour -as [ConsoleColor]
+    $dc = [Drawing.Color]::$Colour
+    if ($cc -is [ConsoleColor]) {
+        $Offset + $ansi_codes[$cc]
+    }
+    elseif ($dc -is [Drawing.Color]) {
+        ($Offset+8), 2, $dc.R, $dc.G, $dc.B
+    }
+    elseif ($Colour -is [Object[]]) {
+        ($Offset+8), 2
+        $Colour
+    }
+    else {
+        throw "Unknown colour: $Colour"
+    }
+}
+
+function ANSI {
+    param (
+        $Foreground,
+        $Background,
+        [Switch]$Bold,
+        [Switch]$Dim,
+        [Switch]$Underline,
+        [Switch]$Reverse
+    ) 
+    if ($Bold) { 1 }
+    if ($Dim) { 2 }
+    if ($Underline) { 4 }
+    if ($Reverse) { 7 }
+    Write-Host -Fore $Foreground $Foreground
+    ANSIcolour $Foreground 30
+    ANSIcolour $Background 40
+}
+
+function ANSIstr {
+    param (
+        $Text,
+        $Foreground,
+        $Background,
+        [Switch]$Bold,
+        [Switch]$Dim,
+        [Switch]$Underline,
+        [Switch]$Reverse,
+        [Switch]$NoReset
+    )
+    $reset = if ($NoReset) { "" } else { "`e[0m" }
+    $ops = (ANSI $Foreground $Background $Bold $Dim $Underline $Reverse) -join ";"
+    "`e[${ops}m${Text}${reset}"
+}
+
+ANSI Yellow Bisque -Underline
+Write-Host ("XXXX" + (ANSIstr "Hello" Yellow Bisque -Underline))
 
 function get_colour($fg, $bg) {
 
